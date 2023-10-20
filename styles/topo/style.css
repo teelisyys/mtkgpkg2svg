@@ -1,0 +1,203 @@
+.korkeuskayra {
+    stroke: orange;
+    stroke-width: 5;
+    fill: none;
+}
+
+
+.kansallispuisto {
+    stroke: none;
+    opacity: 0.1;
+    stroke-width: 10;
+    fill: green;
+}
+
+.luonnonsuojelualue{
+    stroke: none;
+    opacity: 0.1;
+    stroke-width: 10;
+    fill: limegreen;
+}
+
+.suo_helppo_avoin {
+    stroke: none;
+    fill: url(#suo_helppo_avoin);
+}
+
+.suo_helppo_metsa {
+    fill: url(#suo_helppo_puinen);
+}
+
+.suo_vaikea_avoin {
+    stroke: none;
+    fill: url(#suo_vaikea_avoin);
+}
+.suo_vaikea_metsa {
+    stroke: none;
+    fill: url(#suo_vaikea_puinen);
+}
+.soistuma {
+    stroke: none;
+    fill: url(#soistuma);
+}
+
+.jyrkanne, .kalliohalkeama {
+    /*stroke: url(#triangle1);*/
+    stroke: black;
+    stroke-width: 20;
+    stroke-dasharray: 8 4;
+    fill: none;
+    /*fill: url(#soistuma);*/
+}
+
+.puisto, .maatalousmaa {
+    fill: white;
+    stroke: black;
+    stroke-width: 5;
+}
+
+.kunta {
+    stroke: black;
+    stroke-width: 25;
+    stroke-dasharray: 100 25 25 25;
+}
+
+.sahkolinja {
+    stroke: black;
+    stroke-width: 5;
+    fill: none;
+}
+
+
+.jarvi, .virtavesialue, .meri {
+    stroke: royalblue;
+    stroke-width: 5;
+    fill: royalblue;
+}
+
+.virtavesikapea {
+    stroke: royalblue;
+    stroke-width: 5;
+    fill: none;
+}
+
+.autotie_Ia_0, .autotie_Ib_0, .autotie_IIa_0, .autotie_IIb_0 {
+    stroke: black;
+    stroke-width: 30;
+    fill: none;
+
+}
+
+.autotie_Ia_1, .autotie_Ib_1, .autotie_IIa_1, .autotie_IIb_1 {
+    stroke: orange;
+    stroke-width: 20;
+    fill: none;
+
+}
+
+.autotie_IIIa_0, .autotie_IIIb_0 {
+    stroke: black;
+    stroke-width: 20;
+    fill: none;
+
+}
+
+.autotie_IIIa_1, .autotie_IIIb_1 {
+    stroke: orange;
+    stroke-width: 10;
+    fill: none;
+
+}
+
+.ajotie {
+    stroke: black;
+    stroke-width: 10;
+    fill: none;
+}
+
+.ajopolku {
+    stroke: black;
+    stroke-width: 10;
+    stroke-dasharray: 100 25;
+    fill: none;
+}
+
+.polku, .kavelyjapyoratie {
+    stroke: black;
+    stroke-width: 5;
+    stroke-dasharray: 80 20;
+    fill: none;
+}
+
+.talvitie_0 {
+    stroke: black;
+    stroke-width: 5;
+    stroke-dasharray: 22 8 22 8 22 38;
+    fill: none;
+}
+
+
+.rautatie_0 {
+    stroke: black;
+    stroke-width: 15;
+    fill: none;
+}
+
+.rautatie_1 {
+    stroke: white;
+    stroke-width: 10;
+    stroke-dasharray: 50 50;
+    fill: none;
+}
+
+.aita_0 {
+    stroke: black;
+    stroke-width: 5;
+    fill: none;
+}
+
+.aita_1 {
+    stroke: black;
+    stroke-width: 10;
+    stroke-dasharray: 10 50;
+    fill: none;
+}
+
+.kallioalue {
+    stroke: none;
+    fill: silver;
+}
+
+
+.rakennusreunaviiva {
+    stroke: black;
+    stroke-width: 5;
+    /*fill: black;*/
+    /*fill-rule: evenodd;*/
+}
+
+.rakennus {
+    stroke: black;
+    stroke-width: 2;
+    fill: black;
+}
+
+/*.tieviiva {*/
+/*    stroke: lime;*/
+/*    stroke-width: 5;*/
+/*    fill: none;*/
+/*}*/
+
+.p_kivi {
+    fill: black;
+}
+
+.p_havupuu, .p_sekapuu, .p_lehtipuu, .p_varvikko, .p_pensaikko {
+    stroke: black;
+    stroke-width: 5;
+    fill: none;
+}
+
+.p_lahde {
+
+}

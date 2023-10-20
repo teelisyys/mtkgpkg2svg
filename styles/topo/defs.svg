@@ -1,0 +1,37 @@
+<svg:svg xmlns:svg="http://www.w3.org/2000/svg">
+    <svg:defs>
+        <svg:pattern svg:id="soistuma" svg:height="40" svg:width="80" svg:patternUnits="userSpaceOnUse">
+            <svg:line svg:x1="0" svg:y1="8.5" svg:x2="20" svg:y2="8.5" svg:stroke-width="3" svg:stroke="royalblue"/>
+            <svg:line svg:x1="40" svg:y1="8.5" svg:x2="60" svg:y2="8.5" svg:stroke-width="3" svg:stroke="royalblue"/>
+            <svg:line svg:x1="20" svg:y1="28.5" svg:x2="40" svg:y2="28.5" svg:stroke-width="3" svg:stroke="royalblue"/>
+            <svg:line svg:x1="60" svg:y1="28.5" svg:x2="80" svg:y2="28.5" svg:stroke-width="3" svg:stroke="royalblue"/>
+        </svg:pattern>
+        <svg:pattern svg:id="suo_helppo_avoin" svg:height="40" svg:width="80" svg:patternUnits="userSpaceOnUse">
+            <svg:line svg:x1="0" svg:y1="8.5" svg:x2="60" svg:y2="8.5" svg:stroke-width="3" svg:stroke="royalblue"/>
+            <svg:line svg:x1="20" svg:y1="28.5" svg:x2="80" svg:y2="28.5" svg:stroke-width="3" svg:stroke="royalblue"/>
+        </svg:pattern>
+        <svg:pattern svg:id="suo_helppo_puinen" svg:height="40" svg:width="80" svg:patternUnits="userSpaceOnUse">
+            <svg:line svg:x1="0" svg:y1="9" svg:x2="60" svg:y2="9" svg:stroke-width="2" svg:stroke="black"/>
+            <svg:line svg:x1="20" svg:y1="29" svg:x2="80" svg:y2="29" svg:stroke-width="2" svg:stroke="black"/>
+        </svg:pattern>
+        <svg:pattern svg:id="suo_vaikea_avoin" svg:height="20" svg:width="100" svg:patternUnits="userSpaceOnUse">
+            <svg:line svg:x1="0" svg:y1="7.5" svg:x2="100" svg:y2="7.5" svg:stroke-width="5" svg:stroke="royalblue"/>
+        </svg:pattern>
+        <svg:pattern svg:id="suo_vaikea_puinen" svg:height="20" svg:width="100" svg:patternUnits="userSpaceOnUse">
+            <svg:line svg:x1="0" svg:y1="8" svg:x2="100" svg:y2="8" svg:stroke-width="4" svg:stroke="black"/>
+        </svg:pattern>
+        <svg:pattern svg:id="hakkuuaukea" svg:height="40" svg:width="40" svg:patternUnits="userSpaceOnUse">
+            <!--<svg:text svg:x="0" svg:y="40" svg:font-size="40" svg:fill="black">L</svg:text>-->
+            <svg:line svg:x1="-2" svg:y1="-2" svg:x2="42" svg:y2="42" svg:stroke-width="2" svg:stroke="black"
+                      svg:stroke-linecap="square"/>
+        </svg:pattern>
+        <svg:path svg:id="p_kivi" svg:d="M 0 40 L 0 40 L 40 40 L 40 35 L 22.5 35 L 22.5 0 L 17.5 0 L 17.5 35 L 0 35 Z"
+                  svg:class="p_kivi"/>
+        <svg:path svg:id="p_havupuu" svg:d="M -20 30 L 0 -20 L 20 30" svg:class="p_havupuu"/>
+        <svg:path svg:id="p_sekapuu" svg:d="M -20 30 L 0 00 L 20 30 M -10 2 A 18 18 0 1 1 10 2" svg:class="p_sekapuu"/>
+        <svg:path svg:id="p_lehtipuu" svg:d="M -16 30 A 30 30 0 1 1 16 30 " svg:class="p_lehtipuu"/>
+        <svg:path svg:id="p_pensaikko"
+                  svg:d="M -26 30 A 14 14 0 1 1 -10 30 M 26 30 A 14 14 0 1 0 10 30 M -8 0 A 14 14 0 1 1 8 0"
+                  svg:class="p_pensaikko"/>
+    </svg:defs>
+</svg:svg>
