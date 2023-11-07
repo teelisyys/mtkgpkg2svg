@@ -1,5 +1,8 @@
 import argparse
+import datetime
+import logging
 import sqlite3
+import timeit
 from dataclasses import dataclass
 from pathlib import Path
 from sqlite3 import Cursor
@@ -7,19 +10,22 @@ from textwrap import dedent
 from typing import Any, Dict, FrozenSet, List, Optional, Tuple
 from xml.etree import ElementTree
 
-from .wkb_to_geojson import wkb_to_geojson
+from tqdm import tqdm
+
+from mtkgpkg2svg.kohdeluokka_definitions import (
+    KohdeluokkaSpecTuple,
+    overview_map,
+    topographic_map,
+)
+from mtkgpkg2svg.utils import BoundingBox, ramer_douglas_peucker, sutherland_hodgman
+from mtkgpkg2svg.wkb_utils import parse_gpkgblob
+
+logging.basicConfig(level=logging.INFO)
 
 LinearRing = List[Tuple[int, Tuple[float, float]]]
 Styling = Dict[str, str]
 
 GeoJson = Any
-
-KohdeluokkaSpecTuple = (
-    Tuple[str, int]
-    | Tuple[str, int, str]
-    | Tuple[str, int, int, str]
-    | Tuple[str, int, int, str, str]
-)
 
 
 @dataclass
@@ -31,17 +37,7 @@ class KohdeluokkaSpec:
     use_id: Optional[str]
 
 
-@dataclass
-class BoundingBox:
-    north: float
-    east: float
-    south: float
-    west: float
-    height_km: float
-    width_km: float
-
-
-# pylint: disable=too-many-arguments
+# pylint: disable=too-many-arguments,disable=too-many-locals
 def main(
     north: float,
     east: float,
@@ -50,13 +46,16 @@ def main(
     scale: int,
     output_path: Path,
     input_paths: List[Path],
+    variant: str,
 ) -> None:
     workdir = Path(__file__).parent.parent
 
     bounding_box = determine_bounding_box(
         north, east, output_height, output_width, scale
     )
-    svg_root = prepare_output(bounding_box, output_height, output_width, workdir)
+    svg_root = prepare_output(
+        bounding_box, output_height, output_width, workdir, variant
+    )
 
     for gpkg_path in input_paths:
         con = sqlite3.connect(gpkg_path)
@@ -65,55 +64,31 @@ def main(
         table_names = frozenset(
             r[0]
             for r in cur.execute(
-                """SELECT name FROM  sqlite_schema WHERE type ='table' AND name NOT LIKE 'sqlite_%';"""
+                """SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%';"""
             ).fetchall()
         )
 
+        print([tn for tn in table_names if "rtree_" not in tn])
+
         tpl: KohdeluokkaSpecTuple
-        for tpl in [  # type: ignore[assignment]
-            ("meri", 1),
-            ("jarvi", 1),
-            ("virtavesialue", 1),
-            ("virtavesikapea", 1),
-            ("kallioalue", 1),
-            ("korkeuskayra", 1),
-            # ("rakennusreunaviiva", 1),
-            ("rakennus", 1),
-            ("suo", 1, 35411, "suo_helppo_avoin"),
-            ("suo", 1, 35412, "suo_helppo_metsa"),
-            ("suo", 1, 35421, "suo_vaikea_avoin"),
-            ("suo", 1, 35422, "suo_vaikea_metsa"),
-            ("soistuma", 1),
-            ("jyrkanne", 1),
-            ("kalliohalkeama", 1),
-            ("tieviiva", 1, 12316, "ajopolku"),
-            ("tieviiva", 1, 12314, "kavelyjapyoratie"),
-            ("tieviiva", 1, 12313, "polku"),
-            ("tieviiva", 1, 12312, "talvitie"),
-            ("tieviiva", 1, 12141, "ajotie"),
-            ("tieviiva", 2, 12132, "autotie_IIIb"),
-            ("tieviiva", 2, 12131, "autotie_IIIa"),
-            ("tieviiva", 2, 12122, "autotie_IIb"),
-            ("tieviiva", 2, 12121, "autotie_IIa"),
-            ("tieviiva", 2, 12112, "autotie_Ib"),
-            ("tieviiva", 2, 12111, "autotie_Ia"),
-            ("rautatie", 2),
-            ("aita", 2),
-            ("kivi", 1, "p_kivi"),
-            ("lahde", 1, "p_lahde"),
-            ("metsamaankasvillisuus", 1, 32710, "havupuu", "p_havupuu"),
-            ("metsamaankasvillisuus", 1, 32714, "sekapuu", "p_sekapuu"),
-            ("metsamaankasvillisuus", 1, 32713, "lehtipuu", "p_lehtipuu"),
-            # ("metsamaankasvillisuus", 1, 32715, "varvikko", "p_varvikko"),
-            ("metsamaankasvillisuus", 1, 32719, "pensaikko", "p_pensaikko"),
-            ("sahkolinja", 1),
-            ("luonnonsuojelualue", 1),
-            ("kansallispuisto", 1),
-            ("puisto", 1),
-            ("maatalousmaa", 1),
-            # ("kunta", 1),
-        ]:
-            process_item_type(cur, table_names, gpkg_path, bounding_box, svg_root, tpl)
+        kohdeluokat: List[KohdeluokkaSpecTuple] = topographic_map
+        if variant == "overview":
+            kohdeluokat = overview_map
+
+        for tpl in kohdeluokat:
+            logging.info("Starting  %s", tpl)
+            try:
+                t0 = timeit.default_timer()
+                process_item_type(
+                    cur, table_names, gpkg_path, bounding_box, svg_root, tpl
+                )
+                t1 = timeit.default_timer()
+                logging.info(
+                    "Completed %s in %s", tpl, datetime.timedelta(seconds=t1 - t0)
+                )
+            except ValueError:
+                logging.exception("An error occured")
+                # raise
 
     write_svg(output_path, svg_root)
 
@@ -133,86 +108,35 @@ def determine_bounding_box(
     )
 
 
-def geojson_to_svg(
-    datum: GeoJson, styling: Styling, use_id: Optional[str]
-) -> ElementTree.Element:
-    # pylint: disable=too-many-return-statements
-    linear_rings: List[LinearRing]
-    if datum["type"] == "Polygon":
-        linear_rings = datum["coordinates"]
-        return path_shape(linear_rings, styling)
+def clip_to_bb(
+    coordinates: List[Tuple[float, float]],
+    bounding_box: BoundingBox,
+) -> List[Tuple[float, float]]:
+    if len(coordinates) > 10_000:
+        if all(not is_inside_bb(p, bounding_box) for p in coordinates):
+            return []
 
-    if datum["type"] == "MultiPolygon":
-        group = ElementTree.Element("{http://www.w3.org/2000/svg}g")
-        for linear_rings in datum["coordinates"]:
-            group.append(path_shape(linear_rings, styling))
-        return group
-
-    if datum["type"] == "LineString":
-        return points_shape(datum["coordinates"], "polyline", styling)
-
-    if datum["type"] == "MultiLineString":
-        group = ElementTree.Element("{http://www.w3.org/2000/svg}g")
-        for line_string in datum["coordinates"]:
-            group.append(points_shape(line_string, "polyline", styling))
-        return group
-
-    if datum["type"] == "Point":
-        if use_id:
-            return ElementTree.Element(
-                "{http://www.w3.org/2000/svg}use",
-                attrib={
-                    "{http://www.w3.org/2000/svg}href": f"#{use_id}",
-                    "{http://www.w3.org/2000/svg}x": f"{float(datum['coordinates'][0])-20}",
-                    "{http://www.w3.org/2000/svg}y": f"-{float(datum['coordinates'][1])+20}",
-                    **styling,
-                },
-            )
-        return ElementTree.Element(
-            "{http://www.w3.org/2000/svg}rect",
-            attrib={
-                "{http://www.w3.org/2000/svg}x": f"{float(datum['coordinates'][0])-20}",
-                "{http://www.w3.org/2000/svg}y": f"-{float(datum['coordinates'][1])+20}",
-                "{http://www.w3.org/2000/svg}height": "40",
-                "{http://www.w3.org/2000/svg}width": "40",
-                **styling,
-            },
-        )
-
-    if datum["type"] == "GeometryCollection":
-        group = ElementTree.Element("{http://www.w3.org/2000/svg}g")
-        for geometry in datum["geometries"]:
-            group.append(geojson_to_svg(geometry, styling, use_id))
-        return group
-
-    raise ValueError(f"Unsupported datatype in geojson, got {datum['type']}")
-
-
-def path_shape(linear_rings: List[LinearRing], styling: Styling) -> ElementTree.Element:
-    path_coords = []
-    for linear_ring in linear_rings:
-        for ring_index, (x, y) in enumerate(linear_ring):
-            pcmd = "M" if ring_index == 0 else "L"
-            path_coords.append(f"{pcmd} {x},-{y}")
-        path_coords.append("Z")
-    return ElementTree.Element(
-        "{http://www.w3.org/2000/svg}path",
-        attrib={"{http://www.w3.org/2000/svg}d": " ".join(path_coords), **styling},
+    return sutherland_hodgman(
+        coordinates,
+        bounding_box.north,
+        bounding_box.east,
+        bounding_box.south,
+        bounding_box.west,
     )
 
 
-def points_shape(
-    line_string: List[Tuple[float, float]], shape: str, styling: Styling
-) -> ElementTree.Element:
-    return ElementTree.Element(
-        "{http://www.w3.org/2000/svg}" + shape,
-        attrib={
-            "{http://www.w3.org/2000/svg}points": " ".join(
-                [f"{a},-{b}" for a, b in line_string]
-            ),
-            **styling,
-        },
+def is_inside_bb(point: Tuple[float, float], bounding_box: BoundingBox) -> bool:
+    return (
+        bounding_box.west < point[0] < bounding_box.east
+        and bounding_box.south < point[1] < bounding_box.north
     )
+
+
+def simplify_coordinates(
+    coordinates: List[Tuple[float, float]],
+    bounding_box: BoundingBox,
+) -> List[Tuple[float, float]]:
+    return ramer_douglas_peucker(clip_to_bb(coordinates, bounding_box), 0.1)
 
 
 def sty(raw_styling: Dict[str, str]) -> Styling:
@@ -220,17 +144,6 @@ def sty(raw_styling: Dict[str, str]) -> Styling:
     return {
         **{f"{svgnsprfx}{k.replace('_', '-')}": str(v) for k, v in raw_styling.items()},
     }
-
-
-def blob_to_geojson(blob: bytes) -> GeoJson:
-    # https://www.geopackage.org/spec131/index.html#gpb_spec
-    flags = f"{int.from_bytes(blob[3:4]):08b}"
-    envelope_contents_indicator_code = int(flags[4:7], 2)
-    envelope_sizes = [0, 32, 48, 48, 64]
-    geojson, _ = wkb_to_geojson(
-        bytearray(blob[8 + envelope_sizes[envelope_contents_indicator_code] :])
-    )
-    return geojson
 
 
 def fetch_rows(
@@ -297,7 +210,8 @@ def process_item_type(
         bounding_box,
         cur,
     )
-    for row in rows:
+    logging.info("Found %i rows", len(rows))
+    for row in tqdm(rows):
         for i in range(spec.elem_count):
             if (
                 spec.kohdeluokka is not None
@@ -306,11 +220,12 @@ def process_item_type(
                 continue
             geom_blob = row[colmap["geom"]]
             assert isinstance(geom_blob, bytes), f"{type(geom_blob)}"
-            datum = blob_to_geojson(geom_blob)
-            svg_elem = geojson_to_svg(
-                datum, sty({"class": f"{spec.alias} {spec.alias}_{i}"}), spec.use_id
+            geometry = parse_gpkgblob(geom_blob)
+            element = geometry.to_svg_element(
+                sty({"class": f"{spec.alias} {spec.alias}_{i}"}), href_id=spec.use_id
             )
-            svg_root.append(svg_elem)
+            if element is not None:
+                svg_root.append(element)
 
 
 def prepare_output(
@@ -318,13 +233,18 @@ def prepare_output(
     output_height: float,
     output_width: float,
     workdir: Path,
+    variant: str,
 ) -> ElementTree.Element:
+    style = "topo"
+    if variant == "overview":
+        style = variant
+
     svg_root = ElementTree.Element("{http://www.w3.org/2000/svg}svg")
     style_elem = ElementTree.Element("{http://www.w3.org/2000/svg}style")
-    with (workdir / "styles/topo/style.css").open() as ifd:
+    with (workdir / f"styles/{style}/style.css").open() as ifd:
         style_elem.text = ifd.read()
     svg_root.append(style_elem)
-    with (workdir / "styles/topo/defs.svg").open() as ifd:
+    with (workdir / f"styles/{style}/defs.svg").open() as ifd:
         defs_tree = ElementTree.parse(ifd).getroot()
     svg_root.append(defs_tree[0])
     svg_root.set(
@@ -361,16 +281,16 @@ def unpack_spec_tuple(tpl: KohdeluokkaSpecTuple) -> KohdeluokkaSpec:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="mtkgpkg2svg",
-        description="mtkgpkg2svg converts data from the Topographic Database of National Land survey of Finland to svg",
+        description="mtkgpkg2svg converts data from the Topographic Database of National Land Survey of Finland to svg",
     )
 
     parser.add_argument(
         "north",
         type=float,
-        help="The north coordinate of the centrepoint of the render",
+        help="The north coordinate of the centre point of the render",
     )
     parser.add_argument(
-        "east", type=float, help="The east coordinate of the centrepoint of the render"
+        "east", type=float, help="The east coordinate of the centre point of the render"
     )
     parser.add_argument(
         "--height", type=int, default=210, help="The height of the output in mm"
@@ -381,6 +301,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--scale", type=int, default=25_000, help="The scale of the output (1 : scale)"
     )
+    parser.add_argument(
+        "--variant",
+        type=str,
+        choices=["topo", "overview"],
+        default="topo",
+        help="The presentation variant of the output",
+    )
     parser.add_argument("output_file", type=Path, help="Path to the output svg file")
     parser.add_argument(
         "input_file", type=Path, nargs="+", help="Paths of the input .gpkg files"
@@ -388,12 +315,17 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(
-        args.north,
-        args.east,
-        args.height,
-        args.width,
-        args.scale,
-        args.output_file,
-        args.input_file,
-    )
+    import cProfile
+
+    with cProfile.Profile() as pr:
+        main(
+            args.north,
+            args.east,
+            args.height,
+            args.width,
+            args.scale,
+            args.output_file,
+            args.input_file,
+            args.variant,
+        )
+        pr.print_stats(sort="cumulative")

@@ -1,0 +1,46 @@
+.kunnanhallintoraja {
+    stroke: mediumpurple;
+    stroke-width: 600Q;
+    stroke-dasharray: 100 25 25 25;
+    fill: none;
+}
+
+.rautatie {
+    stroke: black;
+    stroke-width: 400Q;
+    fill: none;
+}
+
+
+
+.jarvi, .virtavesialue, .meri {
+    /*stroke: royalblue;*/
+    /*stroke-width: 4Q;*/
+    fill: royalblue;
+}
+
+.virtavesikapea {
+    stroke: royalblue;
+    stroke-width: 4Q;
+    fill: none;
+}
+
+.ajopolku, .kavelyjapyoratie, .polku, .talvitie, .ajotie, .autotie_IIIb, .autotie_IIIa, .autotie_IIb, .autotie_IIa, .autotie_Ib, .autotie_Ia {
+    stroke: red;
+    stroke-width: 4Q;
+    fill: none;
+}
+
+
+.rakennusreunaviiva {
+    stroke: black;
+    stroke-width: 1Q;
+    /*fill: black;*/
+    /*fill-rule: evenodd;*/
+}
+
+.rakennus {
+    stroke: black;
+    stroke-width: 1Q;
+    fill: black;
+}

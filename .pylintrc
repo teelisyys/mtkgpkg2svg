@@ -14,7 +14,7 @@ disable=missing-module-docstring,missing-function-docstring,missing-class-docstr
 
 [FORMAT]
 max-line-length=124
-good-names=i,x,y
+good-names=i,x,y,z,a,b,c,d,p,t0,t1,ec,xp,dx,dy
 
 [TYPECHECK]
 #ignored-modules=torch
