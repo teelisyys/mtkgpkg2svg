@@ -1,23 +1,13 @@
 import logging
 import math
-from dataclasses import dataclass
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple, TypeVar
+
+from mtkgpkg2svg.datatypes import Point, WKBPointZ
+
+U = TypeVar("U", bound=Point)
 
 
-@dataclass
-class BoundingBox:
-    north: float
-    east: float
-    south: float
-    west: float
-    height_km: float
-    width_km: float
-
-
-FPoint = Tuple[float, float]
-
-
-def ramer_douglas_peucker(line: List[FPoint], epsilon: float) -> List[FPoint]:
+def ramer_douglas_peucker(line: List[U], epsilon: float) -> List[U]:
     if not epsilon or len(line) < 3:
         return line
     max_distance: float = 0.0
@@ -36,87 +26,66 @@ def ramer_douglas_peucker(line: List[FPoint], epsilon: float) -> List[FPoint]:
     return [line[0], line[-1]]
 
 
-def perpendicular_distance(p: FPoint, start_p: FPoint, end_p: FPoint) -> float:
+def perpendicular_distance(p: Point, start_p: Point, end_p: Point) -> float:
     if start_p == end_p:
-        return math.sqrt((start_p[0] - p[0]) ** 2 + (start_p[1] - p[1]) ** 2)
+        return math.sqrt((start_p.x - p.x) ** 2 + (start_p.y - p.y) ** 2)
 
-    dx = end_p[0] - start_p[0]
-    dy = end_p[1] - start_p[1]
+    dx = end_p.x - start_p.x
+    dy = end_p.y - start_p.y
     d = math.sqrt(dx**2 + dy**2)
 
     if d == 0:
         return float("inf")
 
     return (
-        math.fabs(p[0] * dy - p[1] * dx + end_p[0] * start_p[1] - end_p[1] * start_p[0])
-        / d
+        math.fabs(p.x * dy - p.y * dx + end_p.x * start_p.y - end_p.y * start_p.x) / d
     )
 
 
-# def intersection_point(c: FPoint, d: FPoint, a: FPoint, b: FPoint) -> Optional[FPoint]:
-#     """Returns the intersection point of the lines defined by (a, b) and (c, d) or None if
-#     the lines are parallel."""
-#
-#     def x(p: FPoint) -> float:
-#         return p[0]
-#
-#     def y(p: FPoint) -> float:
-#         return p[1]
-#
-#     denominator = (x(a) - x(b)) * (y(c) - y(d)) - (y(a) - y(b)) * (x(c) - x(d))
-#     if denominator == 0:
-#         return None
-#
-#     x_nom = (x(a) * y(b) - y(a) * x(b)) * (x(c) - x(d)) - (x(a) - x(b)) * (
-#         x(c) * y(d) - y(c) * x(d)
-#     )
-#
-#     y_nom = (x(a) * y(b) - y(a) * x(b)) * (y(c) - y(d)) - (y(a) - y(b)) * (
-#         x(c) * y(d) - y(c) * x(d)
-#     )
-#
-#     return x_nom / denominator, y_nom / denominator
-
-
-def intersection_point(c: FPoint, d: FPoint, a: FPoint, b: FPoint) -> Optional[FPoint]:
+def intersection_point(c: U, d: U, a: Point, b: Point) -> Optional[U]:
     """Returns the intersection point of the lines defined by (a, b) and (c, d) or None if
     the lines are parallel."""
 
-    a0_m_b0 = a[0] - b[0]
-    c1_m_d1 = c[1] - d[1]
-    a1_m_b1 = a[1] - b[1]
-    c0_m_d0 = c[0] - d[0]
+    a0_m_b0 = a.x - b.x
+    c1_m_d1 = c.y - d.y
+    a1_m_b1 = a.y - b.y
+    c0_m_d0 = c.x - d.x
     denominator = a0_m_b0 * c1_m_d1 - a1_m_b1 * c0_m_d0
     if denominator == 0:
         return None
 
-    a0b1_m_a1b0 = a[0] * b[1] - a[1] * b[0]
-    c0d1_m_c1d0 = c[0] * d[1] - c[1] * d[0]
+    a0b1_m_a1b0 = a.x * b.y - a.y * b.x
+    c0d1_m_c1d0 = c.x * d.y - c.y * d.x
     x_nom = a0b1_m_a1b0 * c0_m_d0 - a0_m_b0 * c0d1_m_c1d0
     y_nom = a0b1_m_a1b0 * c1_m_d1 - a1_m_b1 * c0d1_m_c1d0
 
-    return x_nom / denominator, y_nom / denominator
+    if isinstance(c, WKBPointZ) and isinstance(d, WKBPointZ):
+        return WKBPointZ(
+            x_nom / denominator, y_nom / denominator, (c.z + d.z) / 2
+        )  # type:ignore[return-value]
+
+    return c.__class__(x_nom / denominator, y_nom / denominator)
 
 
 # pylint: disable=too-many-locals
 def sutherland_hodgman(
-    input_polygon: List[FPoint],
+    input_polygon: List[U],
     top: float,
     right: float,
     bottom: float,
     left: float,
-) -> List[FPoint]:
+) -> List[U]:
     """https://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm"""
 
     is_polyline = False
     if input_polygon[0] != input_polygon[-1]:
         is_polyline = True
 
-    clip_lines: List[Tuple[FPoint, FPoint, Callable[[FPoint], bool]]] = [
-        ((left, top), (right, top), lambda x: x[1] < top),
-        ((right, top), (right, bottom), lambda x: x[0] < right),
-        ((left, bottom), (right, bottom), lambda x: x[1] > bottom),
-        ((left, top), (left, bottom), lambda x: x[0] > left),
+    clip_lines: List[Tuple[Point, Point, Callable[[U], bool]]] = [
+        (Point(left, top), Point(right, top), lambda p: p.y < top),
+        (Point(right, top), Point(right, bottom), lambda p: p.x < right),
+        (Point(left, bottom), Point(right, bottom), lambda p: p.y > bottom),
+        (Point(left, top), Point(left, bottom), lambda p: p.x > left),
     ]
     sides = ["top", "right", "bottom", "left"]
 
@@ -126,11 +95,12 @@ def sutherland_hodgman(
 
     for i, (a, b, is_inside) in enumerate(clip_lines):
         logging.debug("--> %s: a=%s, b=%s", sides[i], a, b)
-        new_polygon: List[FPoint] = []
+        new_polygon: List[U] = []
+        point: U
         for p_idx, point in enumerate(current_polygon):
-            previous_point = current_polygon[p_idx - 1]
+            previous_point: U = current_polygon[p_idx - 1]
 
-            xp = intersection_point(previous_point, point, a, b)
+            xp: Optional[U] = intersection_point(previous_point, point, a, b)
             inside = is_inside(point)
             prev_inside = is_inside(previous_point)
             logging.debug(
@@ -142,14 +112,13 @@ def sutherland_hodgman(
                 inside,
                 prev_inside,
             )
-            assert xp is not None
             if inside:
-                if not prev_inside:
+                if not prev_inside and xp is not None:
                     new_polygon.append(xp)
                 assert point is not None
                 new_polygon.append(point)
             else:
-                if prev_inside:
+                if prev_inside and xp is not None:
                     new_polygon.append(xp)
             logging.debug("new_polygon=%s", new_polygon)
         current_polygon = new_polygon
@@ -164,66 +133,3 @@ def sutherland_hodgman(
         return current_polygon[1:]
 
     return current_polygon
-
-
-if __name__ == "__main__":
-    # assert ramer_douglas_peucker([(0, -1000), (0, 0), (0, 1000)], epsilon=100) == [
-    #     (0, -1000),
-    #     (0, 1000),
-    # ]
-    # assert ramer_douglas_peucker([(0, -1000), (99, 0), (0, 1000)], epsilon=100) == [
-    #     (0, -1000),
-    #     (0, 1000),
-    # ]
-    # print(ramer_douglas_peucker([(0, -1000), (101, 0), (0, 1000)], epsilon=100))
-    assert ramer_douglas_peucker(
-        [
-            (0, -1000),
-            (0, -800),
-            (0, -600),
-            (0, -400),
-            (0, -200),
-            (101, 0),
-            (0, 200),
-            (0, 400),
-            (0, 600),
-            (0, 800),
-            (0, 1000),
-        ],
-        epsilon=100,
-    ) == [(0, -1000), (101, 0), (0, 1000)]
-    assert ramer_douglas_peucker(
-        [
-            (0, -1000),
-            (0, -800),
-            (0, -600),
-            (0, -400),
-            (0, -200),
-            (200, 0),
-            (0, 200),
-            (0, 400),
-            (0, 600),
-            (0, 800),
-            (0, 1000),
-        ],
-        epsilon=100,
-    ) == [(0, -1000), (0, -200), (200, 0), (0, 200), (0, 1000)]
-
-    print(
-        ramer_douglas_peucker(
-            [
-                (0, -1000),
-                (0, -800),
-                (200, -600),
-                (0, -400),
-                (0, -200),
-                (0, 0),
-                (0, 200),
-                (0, 400),
-                (0, 600),
-                (0, 800),
-                (0, 1000),
-            ],
-            epsilon=100,
-        )
-    )

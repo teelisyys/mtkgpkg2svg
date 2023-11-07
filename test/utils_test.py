@@ -3,26 +3,26 @@ import unittest
 from typing import Dict
 
 from mtkgpkg2svg.utils import (
-    FPoint,
     intersection_point,
     perpendicular_distance,
     sutherland_hodgman,
+    Point,
 )
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARN)
 
 
 def is_close(expected: float, actual: float, epsilon: float):
     return expected - epsilon < actual < expected + epsilon
 
 
-def is_point_close(expected: FPoint, actual: FPoint, epsilon: float):
-    return is_close(expected[0], actual[0], epsilon) and is_close(
-        expected[1], actual[1], epsilon
+def is_point_close(expected: Point, actual: Point, epsilon: float):
+    return is_close(expected.x, actual.x, epsilon) and is_close(
+        expected.y, actual.y, epsilon
     )
 
 
-def get_points() -> Dict[str, FPoint]:
+def get_points() -> Dict[str, Point]:
     """Returns points like:
     A B C
     D E F
@@ -30,17 +30,17 @@ def get_points() -> Dict[str, FPoint]:
 
     return {
         # Row 1
-        "A": (-1, 1),
-        "B": (0, 1),
-        "C": (1, 1),
+        "A": Point(-1, 1),
+        "B": Point(0, 1),
+        "C": Point(1, 1),
         # Row 2
-        "D": (-1, 0),
-        "E": (0, 0),
-        "F": (1, 0),
+        "D": Point(-1, 0),
+        "E": Point(0, 0),
+        "F": Point(1, 0),
         # Row 3
-        "G": (-1, -1),
-        "H": (0, -1),
-        "I": (1, -1),
+        "G": Point(-1, -1),
+        "H": Point(0, -1),
+        "I": Point(1, -1),
     }
 
 
@@ -48,7 +48,7 @@ class MTKGPKG2SVGUtilsTestCase(unittest.TestCase):
     def test_intersection(self):
         pp = get_points()
 
-        def ip_np(l1, l2):
+        def ip_np(l1, l2) -> Point:
             return intersection_point(pp[l1[0]], pp[l1[1]], pp[l2[0]], pp[l2[1]])
 
         self.assertEqual(pp["E"], ip_np("AI", "CG"))
@@ -63,15 +63,15 @@ class MTKGPKG2SVGUtilsTestCase(unittest.TestCase):
         self.assertEqual(None, ip_np("DE", "AB"))
         self.assertEqual(None, ip_np("DG", "DG"))
 
-        self.assertEqual((0.5, 0.5), ip_np("BF", "EC"))
+        self.assertEqual(Point(0.5, 0.5), ip_np("BF", "EC"))
 
         self.assertEqual(pp["H"], ip_np("AH", "BH"))
 
-        self.assertEqual((-1, -3), ip_np("AG", "CH"))
-        self.assertEqual((-1, -3), ip_np("CH", "AG"))
+        self.assertEqual(Point(-1, -3), ip_np("AG", "CH"))
+        self.assertEqual(Point(-1, -3), ip_np("CH", "AG"))
 
-        self.assertEqual((1, -3), ip_np("CI", "AH"))
-        self.assertEqual((1, -3), ip_np("AH", "CI"))
+        self.assertEqual(Point(1, -3), ip_np("CI", "AH"))
+        self.assertEqual(Point(1, -3), ip_np("AH", "CI"))
 
     def test_perpendicular_distance(self):
         pp = get_points()
@@ -86,42 +86,58 @@ class MTKGPKG2SVGUtilsTestCase(unittest.TestCase):
 
     def test_sutherland_hodgman_polygon(self):
         self.assertEqual(
-            [(0, 0), (1, 0), (1.0, -0), (0, 0)],
-            sutherland_hodgman([(0, 0), (2, 0), (0, 0)], 1, 1, -1, -1),
+            [Point(0, 0), Point(1, 0), Point(1.0, -0), Point(0, 0)],
+            sutherland_hodgman([Point(0, 0), Point(2, 0), Point(0, 0)], 1, 1, -1, -1),
         )
         self.assertEqual(
-            [(-0.9, 0), (0.9, 0), (-0.9, 0)],
-            sutherland_hodgman([(-0.9, 0), (0.9, 0), (-0.9, 0)], 1, 1, -1, -1),
+            [Point(-0.9, 0), Point(0.9, 0), Point(-0.9, 0)],
+            sutherland_hodgman(
+                [Point(-0.9, 0), Point(0.9, 0), Point(-0.9, 0)], 1, 1, -1, -1
+            ),
         )
         self.assertEqual(
-            [(0.9, 0), (-0.9, 0), (0.9, 0)],
-            sutherland_hodgman([(0.9, 0), (-0.9, 0), (0.9, 0)], 1, 1, -1, -1),
+            [Point(0.9, 0), Point(-0.9, 0), Point(0.9, 0)],
+            sutherland_hodgman(
+                [Point(0.9, 0), Point(-0.9, 0), Point(0.9, 0)], 1, 1, -1, -1
+            ),
         )
 
-        expected = [(0.9, 0.1), (0.5, 0.1), (0, 0.1)]
+        expected = [Point(0.9, 0.1), Point(0.5, 0.1), Point(0, 0.1)]
         actual = sutherland_hodgman(
-            [(0.9, 0.1), (0.5, 0.1), (-0.9, 0.1), (0.9, 0.1)], 1, 1, 0, 0
+            [Point(0.9, 0.1), Point(0.5, 0.1), Point(-0.9, 0.1), Point(0.9, 0.1)],
+            1,
+            1,
+            0,
+            0,
         )
         self.assertTrue(
             all(is_point_close(e, a, 1e-08) for e, a in zip(expected, actual))
         )
 
         self.assertEqual(
-            [(8.0, 8.0), (12.0, 8.0), (12.0, 12.0), (8.0, 8.0)],
-            sutherland_hodgman([(7, 7), (14, 7), (14, 14), (7, 7)], 12, 12, 8, 8),
+            [Point(8.0, 8.0), Point(12.0, 8.0), Point(12.0, 12.0), Point(8.0, 8.0)],
+            sutherland_hodgman(
+                [Point(7, 7), Point(14, 7), Point(14, 14), Point(7, 7)], 12, 12, 8, 8
+            ),
         )
         self.assertEqual(
-            [(8.0, 8.0), (8.0, 8.0), (12.0, 12.0), (12.0, 8.0)],
-            sutherland_hodgman([(7, 7), (14, 14), (14, 7), (7, 7)], 12, 12, 8, 8),
+            [Point(8.0, 8.0), Point(8.0, 8.0), Point(12.0, 12.0), Point(12.0, 8.0)],
+            sutherland_hodgman(
+                [Point(7, 7), Point(14, 14), Point(14, 7), Point(7, 7)], 12, 12, 8, 8
+            ),
         )
 
     def test_sutherland_hodgman_polyline(self):
         self.assertEqual(
-            [(8.0, 8.0), (12.0, 8.0), (12.0, 12.0)],
-            sutherland_hodgman([(7, 7), (14, 7), (14, 14)], 12, 12, 8, 8),
+            [Point(8.0, 8.0), Point(12.0, 8.0), Point(12.0, 12.0)],
+            sutherland_hodgman(
+                [Point(7, 7), Point(14, 7), Point(14, 14)], 12, 12, 8, 8
+            ),
         )
 
         self.assertEqual(
-            [(8.0, 8.0), (12.0, 12.0), (12.0, 8.0)],
-            sutherland_hodgman([(7, 7), (14, 14), (14, 7)], 12, 12, 8, 8),
+            [Point(8.0, 8.0), Point(12.0, 12.0), Point(12.0, 8.0)],
+            sutherland_hodgman(
+                [Point(7, 7), Point(14, 14), Point(14, 7)], 12, 12, 8, 8
+            ),
         )

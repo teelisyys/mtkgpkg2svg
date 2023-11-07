@@ -27,3 +27,11 @@ build: .venv
 .PHONY: run
 run: build
 	poetry run python -m $(PROJECT_NAME)
+
+
+.PHONY: test
+test:
+	poetry run python -m unittest test/*py
+
+.PHONY: check
+check: lint test

@@ -7,25 +7,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from sqlite3 import Cursor
 from textwrap import dedent
-from typing import Any, Dict, FrozenSet, List, Optional, Tuple
+from typing import Dict, FrozenSet, List, Optional, Tuple
 from xml.etree import ElementTree
 
 from tqdm import tqdm
 
+from mtkgpkg2svg.datatypes import BoundingBox
 from mtkgpkg2svg.kohdeluokka_definitions import (
     KohdeluokkaSpecTuple,
     overview_map,
     topographic_map,
 )
-from mtkgpkg2svg.utils import BoundingBox, ramer_douglas_peucker, sutherland_hodgman
-from mtkgpkg2svg.wkb_utils import parse_gpkgblob
+from mtkgpkg2svg.wkb_utils import WellKnownBinaryParser
 
 logging.basicConfig(level=logging.INFO)
 
 LinearRing = List[Tuple[int, Tuple[float, float]]]
 Styling = Dict[str, str]
-
-GeoJson = Any
 
 
 @dataclass
@@ -47,6 +45,7 @@ def main(
     output_path: Path,
     input_paths: List[Path],
     variant: str,
+    epsilon: Optional[float],
 ) -> None:
     workdir = Path(__file__).parent.parent
 
@@ -56,6 +55,8 @@ def main(
     svg_root = prepare_output(
         bounding_box, output_height, output_width, workdir, variant
     )
+
+    wkb_parser = WellKnownBinaryParser(bounding_box, epsilon)
 
     for gpkg_path in input_paths:
         con = sqlite3.connect(gpkg_path)
@@ -80,15 +81,14 @@ def main(
             try:
                 t0 = timeit.default_timer()
                 process_item_type(
-                    cur, table_names, gpkg_path, bounding_box, svg_root, tpl
+                    cur, table_names, gpkg_path, bounding_box, svg_root, tpl, wkb_parser
                 )
                 t1 = timeit.default_timer()
                 logging.info(
                     "Completed %s in %s", tpl, datetime.timedelta(seconds=t1 - t0)
                 )
             except ValueError:
-                logging.exception("An error occured")
-                # raise
+                logging.exception("An error occurred")
 
     write_svg(output_path, svg_root)
 
@@ -106,37 +106,6 @@ def determine_bounding_box(
         height_km,
         width_km,
     )
-
-
-def clip_to_bb(
-    coordinates: List[Tuple[float, float]],
-    bounding_box: BoundingBox,
-) -> List[Tuple[float, float]]:
-    if len(coordinates) > 10_000:
-        if all(not is_inside_bb(p, bounding_box) for p in coordinates):
-            return []
-
-    return sutherland_hodgman(
-        coordinates,
-        bounding_box.north,
-        bounding_box.east,
-        bounding_box.south,
-        bounding_box.west,
-    )
-
-
-def is_inside_bb(point: Tuple[float, float], bounding_box: BoundingBox) -> bool:
-    return (
-        bounding_box.west < point[0] < bounding_box.east
-        and bounding_box.south < point[1] < bounding_box.north
-    )
-
-
-def simplify_coordinates(
-    coordinates: List[Tuple[float, float]],
-    bounding_box: BoundingBox,
-) -> List[Tuple[float, float]]:
-    return ramer_douglas_peucker(clip_to_bb(coordinates, bounding_box), 0.1)
 
 
 def sty(raw_styling: Dict[str, str]) -> Styling:
@@ -201,6 +170,7 @@ def process_item_type(
     bounding_box: BoundingBox,
     svg_root: ElementTree.Element,
     item_type_spec: KohdeluokkaSpecTuple,
+    wkb_parser: WellKnownBinaryParser,
 ) -> None:
     spec = unpack_spec_tuple(item_type_spec)
     colmap, rows = fetch_rows(
@@ -220,7 +190,9 @@ def process_item_type(
                 continue
             geom_blob = row[colmap["geom"]]
             assert isinstance(geom_blob, bytes), f"{type(geom_blob)}"
-            geometry = parse_gpkgblob(geom_blob)
+            geometry = wkb_parser.parse_gpkgblob(geom_blob)
+            if geometry is None:
+                continue
             element = geometry.to_svg_element(
                 sty({"class": f"{spec.alias} {spec.alias}_{i}"}), href_id=spec.use_id
             )
@@ -302,6 +274,12 @@ if __name__ == "__main__":
         "--scale", type=int, default=25_000, help="The scale of the output (1 : scale)"
     )
     parser.add_argument(
+        "--epsilon",
+        type=float,
+        default=None,
+        help="Epsilon for Ramer-Douglas-Peucker smoothing",
+    )
+    parser.add_argument(
         "--variant",
         type=str,
         choices=["topo", "overview"],
@@ -327,5 +305,6 @@ if __name__ == "__main__":
             args.output_file,
             args.input_file,
             args.variant,
+            args.epsilon,
         )
         pr.print_stats(sort="cumulative")
