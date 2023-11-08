@@ -66,9 +66,9 @@ overview_map: List[KohdeluokkaSpecTuple] = [
     # ("tieviiva", 1, 12141, "ajotie"),
     # ("tieviiva", 1, 12132, "autotie_IIIb"),
     # ("tieviiva", 1, 12131, "autotie_IIIa"),
-    # ("tieviiva", 1, 12122, "autotie_IIb"),
-    # ("tieviiva", 1, 12121, "autotie_IIa"),
-    # ("tieviiva", 1, 12112, "autotie_Ib"),
-    # ("tieviiva", 1, 12111, "autotie_Ia"),
+    ("tieviiva", 1, 12122, "autotie_IIb"),
+    ("tieviiva", 1, 12121, "autotie_IIa"),
+    ("tieviiva", 1, 12112, "autotie_Ib"),
+    ("tieviiva", 1, 12111, "autotie_Ia"),
     ("rautatie", 1),
 ]

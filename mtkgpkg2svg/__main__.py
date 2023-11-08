@@ -307,4 +307,4 @@ if __name__ == "__main__":
             args.variant,
             args.epsilon,
         )
-        pr.print_stats(sort="cumulative")
+        pr.print_stats(sort="tottime")

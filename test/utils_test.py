@@ -1,5 +1,6 @@
 import logging
 import unittest
+from itertools import zip_longest
 from typing import Dict
 
 from mtkgpkg2svg.utils import (
@@ -7,19 +8,11 @@ from mtkgpkg2svg.utils import (
     perpendicular_distance,
     sutherland_hodgman,
     Point,
+    is_point_close,
+    cohen_sutherland,
 )
 
 logging.basicConfig(level=logging.WARN)
-
-
-def is_close(expected: float, actual: float, epsilon: float):
-    return expected - epsilon < actual < expected + epsilon
-
-
-def is_point_close(expected: Point, actual: Point, epsilon: float):
-    return is_close(expected.x, actual.x, epsilon) and is_close(
-        expected.y, actual.y, epsilon
-    )
 
 
 def get_points() -> Dict[str, Point]:
@@ -141,3 +134,109 @@ class MTKGPKG2SVGUtilsTestCase(unittest.TestCase):
                 [Point(7, 7), Point(14, 14), Point(14, 7)], 12, 12, 8, 8
             ),
         )
+
+        self.assertEqual(
+            [Point(9.0, 9.0), Point(12.0, 12.0), Point(12.0, 9.6)],
+            sutherland_hodgman(
+                [Point(9, 9), Point(14, 14), Point(14, 10)], 12, 12, 8, 8
+            ),
+        )
+
+    def test_cohen_sutherland(self):
+        input_polyline = [
+            Point(7, 9.5),
+            Point(8.5, 9.5),
+            Point(9.5, 8.5),
+            Point(9.5, 7),
+        ]
+        actual = cohen_sutherland(
+            input_polyline,
+            12,
+            12,
+            8,
+            8,
+        )
+        self.assertEqual(
+            [
+                Point(x=8.0, y=9.5),
+                Point(x=8.5, y=9.5),
+                Point(x=9.5, y=8.5),
+                Point(x=9.5, y=8.0),
+            ],
+            actual,
+        )
+
+    def test_cohen_sutherland_edge_case_1(self):
+        input_polyline = [
+            Point(x=16.75, y=891.604),
+            Point(x=15.65, y=883.684),
+            Point(x=90.439, y=770.425),
+        ]
+        actual = cohen_sutherland(
+            input_polyline,
+            7223890.633 - 7118000,
+            576398.845 - 432200.0,
+            7118890.633 - 7118000,
+            427898.845 - 432200.0,
+        )
+
+        expected = [
+            Point(x=16.75, y=891.604),
+            Point(x=16.615138888941463, y=890.6330000003801),
+        ]
+        for exp, act in zip_longest(expected, actual):
+            self.assertTrue(is_point_close(exp, act, 0.001))
+
+    def test_cohen_sutherland_edge_case_2(self):
+        dx = -432200.0
+        dy = -7118000.0
+        actual = self.get_actual(dx, dy)
+        expected = [
+            Point(x=16.75, y=891.604),
+            Point(x=16.615138888941658, y=890.63300000038),
+        ]
+        for exp, act in zip_longest(expected, actual):
+            self.assertTrue(is_point_close(exp, act, 0.001))
+
+        dx = 0.0
+        dy = 0.0
+        actual = self.get_actual(dx, dy)
+        expected = [
+            Point(x=432216.75, y=7118891.604),
+            Point(x=432216.6151388889, y=7118890.633),
+        ]
+        for exp, act in zip_longest(expected, actual):
+            self.assertTrue(is_point_close(exp, act, 0.001))
+
+    def get_actual(self, dx, dy):
+        input_polyline = [
+            Point(x=round(432216.750 + dx, 3), y=round(7118891.604 + dy, 3)),
+            Point(x=round(432215.650 + dx, 3), y=round(7118883.684 + dy, 3)),
+            Point(x=round(432290.439 + dx, 3), y=round(7118770.425 + dy, 3)),
+        ]
+        actual = cohen_sutherland(
+            input_polyline,
+            7223890.633 + dy,
+            576398.845 + dx,
+            7118890.633 + dy,
+            427898.845 + dx,
+        )
+        return actual
+
+    def test_cohen_sutherland_edge_case_4(self):
+        expected = [
+            Point(x=467061.22339631367, y=7118890.633),
+            Point(x=467072.306, y=7119547.363),
+        ]
+        input_polyline = [
+            Point(x=460317.509, y=7096721.518),
+            Point(x=467055.727, y=7118564.929),
+            Point(x=467072.306, y=7119547.363),
+        ]
+
+        actual = cohen_sutherland(
+            input_polyline, 7223890.633, 576398.845, 7118890.633, 427898.845
+        )
+
+        for exp, act in zip_longest(expected, actual):
+            self.assertTrue(is_point_close(exp, act, 0.001))

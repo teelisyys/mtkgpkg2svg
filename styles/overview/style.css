@@ -1,13 +1,13 @@
 .kunnanhallintoraja {
     stroke: mediumpurple;
-    stroke-width: 600Q;
-    stroke-dasharray: 100 25 25 25;
+    stroke-width: 100px;
+    stroke-dasharray: 1000px 100px 100px 100px;
     fill: none;
 }
 
 .rautatie {
     stroke: black;
-    stroke-width: 400Q;
+    stroke-width: 200px;
     fill: none;
 }
 
@@ -21,13 +21,13 @@
 
 .virtavesikapea {
     stroke: royalblue;
-    stroke-width: 4Q;
+    stroke-width: 100px;
     fill: none;
 }
 
 .ajopolku, .kavelyjapyoratie, .polku, .talvitie, .ajotie, .autotie_IIIb, .autotie_IIIa, .autotie_IIb, .autotie_IIa, .autotie_Ib, .autotie_Ia {
     stroke: red;
-    stroke-width: 4Q;
+    stroke-width: 100px;
     fill: none;
 }
 

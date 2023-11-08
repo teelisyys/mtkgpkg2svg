@@ -1,7 +1,7 @@
 import binascii
 import logging
 import struct
-from typing import Optional, Tuple, TypeVar
+from typing import List, Optional, Tuple, TypeVar
 
 from mtkgpkg2svg.datatypes import (
     BoundingBox,
@@ -12,7 +12,7 @@ from mtkgpkg2svg.datatypes import (
     WKBPointZ,
     WKBPolygonZ,
 )
-from mtkgpkg2svg.utils import ramer_douglas_peucker, sutherland_hodgman
+from mtkgpkg2svg.utils import OutCode, clip_poly, out_code_bb, ramer_douglas_peucker
 
 WKB_POINT = 1
 WKB_POINT_Z = 1001
@@ -22,10 +22,7 @@ WKB_POLYGON_Z = 1003
 
 
 def is_inside(x: float, y: float, bounding_box: BoundingBox) -> bool:
-    return (
-        bounding_box.west < x < bounding_box.east
-        and bounding_box.south < y < bounding_box.north
-    )
+    return out_code_bb(x, y, bounding_box) == OutCode.INSIDE
 
 
 class WellKnownBinaryParser:
@@ -109,23 +106,47 @@ class WellKnownBinaryParser:
     def parse_multipointsish_z(
         self, wkb: bytes, ec: str, offset: int, func: type[T]
     ) -> Tuple[int, Optional[T]]:
+        # pylint: disable=too-many-locals
         fmt = "I"
         (num_points,) = struct.unpack_from(ec + fmt, wkb, offset)
         offset += struct.calcsize(fmt)
 
         fmt = f"{(num_points * 3)}d"
         flatted_points = struct.unpack_from(ec + fmt, wkb, offset)
-        points = [
-            WKBPointZ(
-                flatted_points[i * 3],
-                flatted_points[i * 3 + 1],
-                flatted_points[i * 3 + 2],
-            )
-            for i in range(num_points)
-        ]
 
         if self.bounding_box is not None:
-            points = sutherland_hodgman(
+            all_points: List[WKBPointZ] = []
+            out_codes: List[OutCode] = []
+            all_outside = True
+            for i in range(num_points):
+                point = WKBPointZ(
+                    flatted_points[i * 3],
+                    flatted_points[i * 3 + 1],
+                    flatted_points[i * 3 + 2],
+                )
+                all_points.append(point)
+                code = out_code_bb(point.x, point.y, self.bounding_box)
+                if code == OutCode.INSIDE:
+                    all_outside = False
+                out_codes.append(code)
+
+            if all_outside:
+                return offset + struct.calcsize(fmt), None
+
+            points: List[WKBPointZ] = []
+            for i, (oc, point) in enumerate(zip(out_codes, all_points)):
+                # Since the Sutherland-Hodgman algorithm is somewhat heavy,
+                # we simplify the input by removing the points whose both neighbors are
+                # in the same outside sector
+                if not (
+                    oc != OutCode.INSIDE
+                    and 0 < i < (num_points - 1)
+                    and out_codes[i - 1] == oc
+                    and oc == out_codes[i + 1]
+                ):
+                    points.append(point)
+
+            points = clip_poly(
                 points,
                 self.bounding_box.north,
                 self.bounding_box.east,
@@ -134,6 +155,15 @@ class WellKnownBinaryParser:
             )
             if not points:
                 return offset + struct.calcsize(fmt), None
+        else:
+            points = [
+                WKBPointZ(
+                    flatted_points[i * 3],
+                    flatted_points[i * 3 + 1],
+                    flatted_points[i * 3 + 2],
+                )
+                for i in range(num_points)
+            ]
 
         if self.epsilon:
             points = ramer_douglas_peucker(points, self.epsilon)
