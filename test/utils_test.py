@@ -240,3 +240,20 @@ class MTKGPKG2SVGUtilsTestCase(unittest.TestCase):
 
         for exp, act in zip_longest(expected, actual):
             self.assertTrue(is_point_close(exp, act, 0.001))
+
+    def test_cohen_sutherland_edge_case_5(self):
+        expected = []
+        input_polyline = [
+            Point(x=-3, y=3),
+            Point(x=-2, y=3),
+            Point(x=-1, y=3),
+            Point(x=0, y=3),
+            Point(x=1, y=3),
+            Point(x=2, y=3),
+            Point(x=3, y=3),
+        ]
+
+        actual = cohen_sutherland(input_polyline, 2, 2, -2, -2)
+
+        for exp, act in zip_longest(expected, actual):
+            self.assertTrue(is_point_close(exp, act, 0.001))

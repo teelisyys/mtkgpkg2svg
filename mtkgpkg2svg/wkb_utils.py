@@ -12,7 +12,13 @@ from mtkgpkg2svg.datatypes import (
     WKBPointZ,
     WKBPolygonZ,
 )
-from mtkgpkg2svg.utils import OutCode, clip_poly, out_code_bb, ramer_douglas_peucker
+from mtkgpkg2svg.utils import (
+    OUTCODE_INSIDE,
+    OutCode,
+    clip_poly,
+    out_code,
+    ramer_douglas_peucker,
+)
 
 WKB_POINT = 1
 WKB_POINT_Z = 1001
@@ -21,8 +27,16 @@ WKB_LINE_STRING_Z = 1002
 WKB_POLYGON_Z = 1003
 
 
-def is_inside(x: float, y: float, bounding_box: BoundingBox) -> bool:
-    return out_code_bb(x, y, bounding_box) == OutCode.INSIDE
+# pylint: disable=too-many-arguments
+def is_inside(
+    x: float,
+    y: float,
+    y_top: float,
+    x_right: float,
+    y_bottom: float,
+    x_left: float,
+) -> bool:
+    return out_code(x, y, y_top, x_right, y_bottom, x_left) == OUTCODE_INSIDE
 
 
 class WellKnownBinaryParser:
@@ -33,6 +47,14 @@ class WellKnownBinaryParser:
     ):
         self.bounding_box = bounding_box
         self.epsilon = epsilon
+        self.bounding_box_tuple: Optional[Tuple[float, float, float, float]] = None
+        if bounding_box is not None:
+            self.bounding_box_tuple = (
+                bounding_box.north,
+                bounding_box.east,
+                bounding_box.south,
+                bounding_box.west,
+            )
 
     def parse_gpkgblob(
         self,
@@ -96,7 +118,11 @@ class WellKnownBinaryParser:
     ) -> Tuple[int, Optional[WKBPointZ]]:
         fmt = "ddd"
         x, y, z = struct.unpack_from(ec + fmt, wkb, offset)
-        if self.bounding_box is not None and not is_inside(x, y, self.bounding_box):
+        if (
+            self.bounding_box is not None
+            and self.bounding_box_tuple is not None
+            and not is_inside(x, y, *self.bounding_box_tuple)
+        ):
             return offset + struct.calcsize(fmt), None
 
         return offset + struct.calcsize(fmt), WKBPointZ(x, y, z)
@@ -114,7 +140,7 @@ class WellKnownBinaryParser:
         fmt = f"{(num_points * 3)}d"
         flatted_points = struct.unpack_from(ec + fmt, wkb, offset)
 
-        if self.bounding_box is not None:
+        if self.bounding_box is not None and self.bounding_box_tuple is not None:
             all_points: List[WKBPointZ] = []
             out_codes: List[OutCode] = []
             all_outside = True
@@ -125,8 +151,8 @@ class WellKnownBinaryParser:
                     flatted_points[i * 3 + 2],
                 )
                 all_points.append(point)
-                code = out_code_bb(point.x, point.y, self.bounding_box)
-                if code == OutCode.INSIDE:
+                code = out_code(point.x, point.y, *self.bounding_box_tuple)
+                if code == OUTCODE_INSIDE:
                     all_outside = False
                 out_codes.append(code)
 
@@ -139,7 +165,7 @@ class WellKnownBinaryParser:
                 # we simplify the input by removing the points whose both neighbors are
                 # in the same outside sector
                 if not (
-                    oc != OutCode.INSIDE
+                    oc != OUTCODE_INSIDE
                     and 0 < i < (num_points - 1)
                     and out_codes[i - 1] == oc
                     and oc == out_codes[i + 1]
