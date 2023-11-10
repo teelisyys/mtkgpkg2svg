@@ -4,9 +4,9 @@ import unittest
 from mtkgpkg2svg.wkb_utils import (
     WKBPointZ,
     WKBPoint,
-    WKBLineStringZ,
-    WKBPolygonZ,
-    WKBLinearRingZ,
+    WKBLineString,
+    WKBPolygon,
+    WKBLinearRing,
     WellKnownBinaryParser,
 )
 
@@ -27,9 +27,9 @@ class WKBUtilsUtilsTestCase(unittest.TestCase):
     def test_parse_gpkgblob(self):
         parser = WellKnownBinaryParser(None)
         self.assertEqual(
-            WKBPolygonZ(
+            WKBPolygon[WKBPointZ](
                 rings=[
-                    WKBLinearRingZ(
+                    WKBLinearRing[WKBPointZ](
                         points=[
                             WKBPointZ(x=416048.232, y=6644631.735, z=0.001),
                             WKBPointZ(x=417982.351, y=6644480.951, z=0.001),
@@ -82,7 +82,7 @@ class WKBUtilsUtilsTestCase(unittest.TestCase):
         )
 
         self.assertEqual(
-            WKBLineStringZ(
+            WKBLineString[WKBPointZ](
                 points=[
                     WKBPointZ(x=354567.334, y=6651799.415, z=13.436),
                     WKBPointZ(x=354555.325, y=6651823.991, z=14.431),

@@ -1,6 +1,6 @@
 import abc
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict, Generic, List, Optional, TypeVar
 from xml.etree import ElementTree
 
 Styling = Dict[str, str]
@@ -63,9 +63,12 @@ class WKBPointZ(WKBPoint):
     z: float
 
 
+P = TypeVar("P", bound=WKBPoint)
+
+
 @dataclass
-class WKBLineStringZ(AsSVG):
-    points: List[WKBPointZ]
+class WKBLineString(Generic[P], AsSVG):
+    points: List[P]
 
     def to_svg_element(
         self, styling: Styling, href_id: Optional[str] = None
@@ -84,8 +87,8 @@ class WKBLineStringZ(AsSVG):
 
 
 @dataclass
-class WKBLinearRingZ(AsSVG):
-    points: List[WKBPointZ]
+class WKBLinearRing(Generic[P], AsSVG):
+    points: List[P]
 
     def to_svg_element(
         self, styling: Styling, href_id: Optional[str] = None
@@ -104,8 +107,8 @@ class WKBLinearRingZ(AsSVG):
 
 
 @dataclass
-class WKBPolygonZ(AsSVG):
-    rings: List[WKBLinearRingZ]
+class WKBPolygon(Generic[P], AsSVG):
+    rings: List[WKBLinearRing[P]]
 
     def to_svg_element(
         self, styling: Styling, href_id: Optional[str] = None
@@ -122,4 +125,4 @@ class WKBPolygonZ(AsSVG):
         )
 
 
-WKBGeometry = WKBPoint | WKBPointZ | WKBLineStringZ | WKBPolygonZ | WKBLinearRingZ
+WKBGeometry = WKBPoint | WKBPointZ | WKBLineString | WKBPolygon | WKBLinearRing

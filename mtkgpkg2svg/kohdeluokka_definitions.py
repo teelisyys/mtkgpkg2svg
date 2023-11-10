@@ -49,7 +49,8 @@ topographic_map: List[KohdeluokkaSpecTuple] = [
     ("kansallispuisto", 1),
     ("puisto", 1),
     ("maatalousmaa", 1),
-    # ("kunta", 1),
+    ("kunnanhallintoraja", 1),
+    ("PalstanSijaintitiedot", 1),
 ]
 
 overview_map: List[KohdeluokkaSpecTuple] = [

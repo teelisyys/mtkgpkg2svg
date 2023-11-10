@@ -5,12 +5,13 @@ from typing import List, Optional, Tuple, TypeVar
 
 from mtkgpkg2svg.datatypes import (
     BoundingBox,
+    P,
     WKBGeometry,
-    WKBLinearRingZ,
-    WKBLineStringZ,
+    WKBLinearRing,
+    WKBLineString,
     WKBPoint,
     WKBPointZ,
-    WKBPolygonZ,
+    WKBPolygon,
 )
 from mtkgpkg2svg.utils import (
     OUTCODE_INSIDE,
@@ -24,6 +25,7 @@ WKB_POINT = 1
 WKB_POINT_Z = 1001
 
 WKB_LINE_STRING_Z = 1002
+WKB_POLYGON = 3
 WKB_POLYGON_Z = 1003
 
 
@@ -95,11 +97,13 @@ class WellKnownBinaryParser:
         elif wkb_geometry_type == WKB_POINT_Z:
             offset, geometry = self.parse_point_z(wkb, ec, offset)
         elif wkb_geometry_type == WKB_LINE_STRING_Z:
-            offset, geometry = self.parse_multipointsish_z(
-                wkb, ec, offset, WKBLineStringZ
+            offset, geometry = self.parse_multipointsish(
+                wkb, ec, offset, WKBLineString, WKBPointZ
             )
+        elif wkb_geometry_type == WKB_POLYGON:
+            offset, geometry = self.parse_polygon(wkb, ec, offset, WKBPoint)
         elif wkb_geometry_type == WKB_POLYGON_Z:
-            offset, geometry = self.parse_polygon_z(wkb, ec, offset)
+            offset, geometry = self.parse_polygon(wkb, ec, offset, WKBPointZ)
         else:
             raise ValueError(
                 f"Unknown Geometry »{wkb_geometry_type}» »{binascii.hexlify(wkb)!r}»"
@@ -129,27 +133,37 @@ class WellKnownBinaryParser:
 
     T = TypeVar("T")
 
-    def parse_multipointsish_z(
-        self, wkb: bytes, ec: str, offset: int, func: type[T]
+    def parse_multipointsish(
+        self, wkb: bytes, ec: str, offset: int, func: type[T], payload_clz: type[P]
     ) -> Tuple[int, Optional[T]]:
         # pylint: disable=too-many-locals
+        dim = 3 if payload_clz == WKBPointZ else 2
+
         fmt = "I"
         (num_points,) = struct.unpack_from(ec + fmt, wkb, offset)
         offset += struct.calcsize(fmt)
 
-        fmt = f"{(num_points * 3)}d"
+        fmt = f"{(num_points * dim)}d"
         flatted_points = struct.unpack_from(ec + fmt, wkb, offset)
 
         if self.bounding_box is not None and self.bounding_box_tuple is not None:
-            all_points: List[WKBPointZ] = []
+            all_points: List[P] = []
             out_codes: List[OutCode] = []
             all_outside = True
             for i in range(num_points):
-                point = WKBPointZ(
-                    flatted_points[i * 3],
-                    flatted_points[i * 3 + 1],
-                    flatted_points[i * 3 + 2],
-                )
+                point: P
+                if dim == 3:
+                    point = WKBPointZ(  # type: ignore[assignment]
+                        flatted_points[i * 3],
+                        flatted_points[i * 3 + 1],
+                        flatted_points[i * 3 + 2],
+                    )
+                else:
+                    point = WKBPoint(  # type: ignore[assignment]
+                        flatted_points[i * 2],
+                        flatted_points[i * 2 + 1],
+                    )
+
                 all_points.append(point)
                 code = out_code(point.x, point.y, *self.bounding_box_tuple)
                 if code == OUTCODE_INSIDE:
@@ -159,7 +173,7 @@ class WellKnownBinaryParser:
             if all_outside:
                 return offset + struct.calcsize(fmt), None
 
-            points: List[WKBPointZ] = []
+            points: List[P] = []
             for i, (oc, point) in enumerate(zip(out_codes, all_points)):
                 # Since the Sutherland-Hodgman algorithm is somewhat heavy,
                 # we simplify the input by removing the points whose both neighbors are
@@ -183,10 +197,15 @@ class WellKnownBinaryParser:
                 return offset + struct.calcsize(fmt), None
         else:
             points = [
-                WKBPointZ(
+                WKBPointZ(  # type: ignore[misc]
                     flatted_points[i * 3],
                     flatted_points[i * 3 + 1],
                     flatted_points[i * 3 + 2],
+                )
+                if dim == 3
+                else WKBPoint(
+                    flatted_points[i * 2],
+                    flatted_points[i * 2 + 1],
                 )
                 for i in range(num_points)
             ]
@@ -196,21 +215,21 @@ class WellKnownBinaryParser:
 
         return offset + struct.calcsize(fmt), func(points)  # type:ignore[call-arg]
 
-    def parse_polygon_z(
-        self, wkb: bytes, ec: str, offset: int
-    ) -> Tuple[int, Optional[WKBPolygonZ]]:
+    def parse_polygon(
+        self, wkb: bytes, ec: str, offset: int, clz: type[P]
+    ) -> Tuple[int, Optional[WKBPolygon[P]]]:
         fmt = "I"
         (num_rings,) = struct.unpack_from(ec + fmt, wkb, offset)
         offset += struct.calcsize(fmt)
 
         rings = []
         for _ in range(num_rings):
-            offset, geometry = self.parse_multipointsish_z(
-                wkb, ec, offset, WKBLinearRingZ
+            offset, geometry = self.parse_multipointsish(
+                wkb, ec, offset, WKBLinearRing, clz
             )
             if geometry is not None:
                 rings.append(geometry)
         if not rings:
             return offset + struct.calcsize(fmt), None
 
-        return offset + struct.calcsize(fmt), WKBPolygonZ(rings)
+        return offset + struct.calcsize(fmt), WKBPolygon[P](rings)

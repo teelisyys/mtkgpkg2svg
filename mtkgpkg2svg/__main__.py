@@ -124,7 +124,8 @@ def fetch_rows(
 ) -> Tuple[Dict[str, int], List[List[str | int | bytes]]]:
     tn_geom = f"rtree_{table_name}_geom"
     if table_name not in table_names or tn_geom not in table_names:
-        raise ValueError(f"Unknown table name »{table_name}»!")
+        logging.warning("Unknown table name »%s»!", table_name)
+        return {}, []
 
     res = cur.execute(
         dedent(
@@ -133,7 +134,7 @@ def fetch_rows(
             FROM {table_name}
             WHERE fid IN(
               SELECT id FROM {tn_geom}
-              WHERE NOT ((maxy < :bb_south OR miny > :bb_north) AND (maxx < :bb_west OR minx > :bb_east)));"""
+              WHERE NOT ((maxy < :bb_south OR miny > :bb_north) OR (maxx < :bb_west OR minx > :bb_east)));"""
         ),
         {
             "bb_south": bounding_box.south,
